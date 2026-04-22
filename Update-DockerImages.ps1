@@ -74,7 +74,9 @@ function Invoke-Step {
         [scriptblock]$Action
     )
     Write-Host "  → $Label" -ForegroundColor DarkGray
-    & $Action
+    # Pipe to Out-Host so docker's stdout is still displayed/logged
+    # but does NOT pollute the caller's pipeline (which collects results).
+    & $Action | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Step failed ($Label) with exit code $LASTEXITCODE"
     }
