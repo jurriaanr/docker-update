@@ -19,4 +19,6 @@ auto:
 
 .PHONY: dry-run
 dry-run:
-	./Update-DockerImages.ps1 -Auto -NoPush
+	@echo "This will still update local images"
+	@for i in 10 9 8 7 6 5 4 3 2 1; do printf "\r%2d..." $$i; sleep 1; done; echo ""
+	@./Update-DockerImages.ps1 -Auto -NoPush
