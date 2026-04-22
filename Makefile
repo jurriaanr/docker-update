@@ -1,9 +1,4 @@
-all: both
-
-.PHONY: both
-both:
-	./Update-DockerImages.ps1 -Tool php
-	./Update-DockerImages.ps1 -Tool apache
+all: dry-run
 
 .PHONY: php
 php:
@@ -11,7 +6,15 @@ php:
 
 .PHONY: apache
 apache:
-	./Update-DockerImages.ps1 -Tool php
+	./Update-DockerImages.ps1 -Tool apache
+
+.PHONY: nginx
+php:
+	./Update-DockerImages.ps1 -Tool nginx
+
+.PHONY: caddy
+php:
+	./Update-DockerImages.ps1 -Tool caddy
 
 .PHONY: auto
 auto:

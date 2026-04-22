@@ -9,7 +9,7 @@
     and pushes to Docker Hub. The highest version per tool also gets tagged `latest`.
 
 .PARAMETER Tool
-    Which tool to update: 'php' or 'apache'. Prompts if omitted. Ignored in -Auto mode.
+    Which tool to update: 'php', 'apache', 'caddy', or 'nginx'. Prompts if omitted. Ignored in -Auto mode.
 
 .PARAMETER NoPush
     Build and tag only; skip `docker push`.
@@ -18,7 +18,7 @@
     Fully automatic: both tools, all versions, push, no prompts. Output goes to a log file.
 
 .PARAMETER LogFile
-    Path to the log file (only used with -Auto). Defaults to ./docker-update-<timestamp>.log.
+    Path to the log file (only used with -Auto). Defaults to ./logs/docker-update-<timestamp>.log.
 
 .EXAMPLE
     ./Update-DockerImages.ps1
@@ -30,7 +30,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('php', 'apache')]
+    [ValidateSet('php', 'apache', 'caddy', 'nginx')]
     [string]$Tool,
 
     [switch]$NoPush,
@@ -169,7 +169,8 @@ function Invoke-ToolBuild {
     # --- build loop ---
     $results = @()
     foreach ($f in $selected) {
-        $tagBase  = "$($f.Version)-fpm"
+        # Tag suffix: caddy/nginx use bare version (e.g. "2", "1.27"); php/apache use "-fpm" (e.g. "8.5-fpm")
+        $tagBase  = if ($ToolName -in @('caddy', 'nginx')) { $f.Version } else { "$($f.Version)-fpm" }
         $remote   = "jurriaanr/${ToolName}:$tagBase"
         $isLatest = ($f.Name -eq $latestFolder.Name)
 
@@ -266,12 +267,18 @@ try {
         Write-Host "What do you want to update?"
         Write-Host "  1) php"
         Write-Host "  2) apache"
-        $choice = (Read-Host "Choice [1/2]").Trim()
+        Write-Host "  3) caddy"
+        Write-Host "  4) nginx"
+        $choice = (Read-Host "Choice [1/2/3/4]").Trim()
         switch ($choice) {
             '1'      { $Tool = 'php' }
             'php'    { $Tool = 'php' }
             '2'      { $Tool = 'apache' }
             'apache' { $Tool = 'apache' }
+            '3'      { $Tool = 'caddy' }
+            'caddy'  { $Tool = 'caddy' }
+            '4'      { $Tool = 'nginx' }
+            'nginx'  { $Tool = 'nginx' }
             default  { Write-ErrMsg "Invalid choice: '$choice'"; exit 1 }
         }
     }
@@ -294,7 +301,7 @@ try {
 
     if ($Auto) {
         Write-Info "Auto mode: building all tools, all versions, pushing."
-        foreach ($t in @('php', 'apache')) {
+        foreach ($t in @('php', 'apache', 'caddy', 'nginx')) {
             $allResults += Invoke-ToolBuild -ToolName $t -InteractiveSelection:$false -DoPush:$doPush
         }
     } else {
