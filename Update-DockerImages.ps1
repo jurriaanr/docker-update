@@ -238,7 +238,7 @@ $transcriptStarted = $false
 if ($Auto) {
     if (-not $LogFile) {
         $stamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
-        $LogFile = Join-Path (Get-Location) "docker-update-$stamp.log"
+        $LogFile = Join-Path (Join-Path (Get-Location) 'logs') "docker-update-$stamp.log"
     }
     # Ensure parent dir exists
     $logDir = Split-Path -Parent $LogFile
