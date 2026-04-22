@@ -62,10 +62,17 @@ function Test-DockerLogin {
 }
 
 function ConvertTo-DottedVersion {
-    # "85" -> "8.5", "24" -> "2.4", "810" -> "8.10"
+    # "85" -> "8.5", "24" -> "2.4", "810" -> "8.10", "2" -> "2"
     param([string]$Digits)
     if ($Digits.Length -lt 2) { return $Digits }
     return "$($Digits[0]).$($Digits.Substring(1))"
+}
+
+function ConvertTo-SortableVersion {
+    # [version] needs at least major.minor, so pad single-digit versions with .0
+    param([string]$DottedVersion)
+    if ($DottedVersion -notmatch '\.') { return [version]"$DottedVersion.0" }
+    return [version]$DottedVersion
 }
 
 function Invoke-Step {
@@ -91,7 +98,7 @@ function Get-ToolFolders {
         return @()
     }
 
-    $pattern = "^$ToolName(\d{2,})$"
+    $pattern = "^$ToolName(\d+)$"
     return Get-ChildItem -Path $baseDir -Directory |
         Where-Object { $_.Name -match $pattern } |
         ForEach-Object {
@@ -101,7 +108,7 @@ function Get-ToolFolders {
                 Path    = $_.FullName
                 Digits  = $digits
                 Version = ConvertTo-DottedVersion $digits
-                SortKey = [version](ConvertTo-DottedVersion $digits)
+                SortKey = ConvertTo-SortableVersion (ConvertTo-DottedVersion $digits)
             }
         } |
         Sort-Object SortKey

@@ -9,11 +9,11 @@ apache:
 	./Update-DockerImages.ps1 -Tool apache
 
 .PHONY: nginx
-php:
+nginx:
 	./Update-DockerImages.ps1 -Tool nginx
 
 .PHONY: caddy
-php:
+caddy:
 	./Update-DockerImages.ps1 -Tool caddy
 
 .PHONY: auto
