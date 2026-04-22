@@ -94,7 +94,7 @@ function Get-ToolFolders {
 
     $baseDir = Join-Path $HOME "sites/docker-$ToolName"
     if (-not (Test-Path $baseDir)) {
-        Write-ErrMsg "Base directory not found: $baseDir"
+        # Not an error — this tool simply isn't set up on this machine
         return @()
     }
 
@@ -132,7 +132,7 @@ function Invoke-ToolBuild {
 
     $folders = Get-ToolFolders -ToolName $ToolName
     if (-not $folders -or $folders.Count -eq 0) {
-        Write-ErrMsg "No version folders found for '$ToolName'; skipping."
+        Write-WarnMsg "No version folders found for '$ToolName'; skipping."
         return @([pscustomobject]@{ Tool = $ToolName; Name = '(none)'; Status = 'skipped'; Error = 'no folders' })
     }
 
@@ -351,9 +351,10 @@ finally {
     if ($transcriptStarted) {
         Stop-Transcript | Out-Null
         # Short summary outside the transcript so unattended callers see pass/fail
-        $failed = @($allResults | Where-Object { $_.Status -eq 'failed' }).Count
-        $ok     = @($allResults | Where-Object { $_.Status -eq 'ok'     }).Count
-        Write-Host "Auto run complete: $ok ok, $failed failed. Log: $LogFile"
+        $failed  = @($allResults | Where-Object { $_.Status -eq 'failed'  }).Count
+        $ok      = @($allResults | Where-Object { $_.Status -eq 'ok'      }).Count
+        $skipped = @($allResults | Where-Object { $_.Status -eq 'skipped' }).Count
+        Write-Host "Auto run complete: $ok ok, $failed failed, $skipped skipped. Log: $LogFile"
     }
 }
 
