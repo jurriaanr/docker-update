@@ -16,6 +16,14 @@ nginx:
 caddy:
 	./Update-DockerImages.ps1 -Tool caddy
 
+.PHONY: frankenphp
+frankenphp:
+	./Update-DockerImages.ps1 -Tool frankenphp
+
+.PHONY: frankenphp-worker
+frankenphp-worker:
+	./Update-DockerImages.ps1 -Tool frankenphp-worker
+
 .PHONY: auto
 auto:
 	./Update-DockerImages.ps1 -Auto

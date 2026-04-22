@@ -9,7 +9,7 @@
     and pushes to Docker Hub. The highest version per tool also gets tagged `latest`.
 
 .PARAMETER Tool
-    Which tool to update: 'php', 'apache', 'caddy', or 'nginx'. Prompts if omitted. Ignored in -Auto mode.
+    Which tool to update: 'php', 'apache', 'caddy', 'nginx', 'frankenphp', or 'frankenphp-worker'. Prompts if omitted. Ignored in -Auto mode.
 
 .PARAMETER NoPush
     Build and tag only; skip `docker push`.
@@ -30,7 +30,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('php', 'apache', 'caddy', 'nginx')]
+    [ValidateSet('php', 'apache', 'caddy', 'nginx', 'frankenphp', 'frankenphp-worker')]
     [string]$Tool,
 
     [switch]$NoPush,
@@ -176,8 +176,11 @@ function Invoke-ToolBuild {
     # --- build loop ---
     $results = @()
     foreach ($f in $selected) {
-        # Tag suffix: caddy/nginx use bare version (e.g. "2", "1.27"); php/apache use "-fpm" (e.g. "8.5-fpm")
-        $tagBase  = if ($ToolName -in @('caddy', 'nginx')) { $f.Version } else { "$($f.Version)-fpm" }
+        # Tag suffix:
+        #   php/apache         → "-fpm" (historical convention)
+        #   caddy/nginx        → bare version (user preference)
+        #   frankenphp variants → bare version (PHP is baked in, not consuming FPM)
+        $tagBase  = if ($ToolName -in @('php', 'apache')) { "$($f.Version)-fpm" } else { $f.Version }
         $remote   = "jurriaanr/${ToolName}:$tagBase"
         $isLatest = ($f.Name -eq $latestFolder.Name)
 
@@ -276,16 +279,22 @@ try {
         Write-Host "  2) apache"
         Write-Host "  3) caddy"
         Write-Host "  4) nginx"
-        $choice = (Read-Host "Choice [1/2/3/4]").Trim()
+        Write-Host "  5) frankenphp"
+        Write-Host "  6) frankenphp-worker"
+        $choice = (Read-Host "Choice [1-6]").Trim()
         switch ($choice) {
-            '1'      { $Tool = 'php' }
-            'php'    { $Tool = 'php' }
-            '2'      { $Tool = 'apache' }
-            'apache' { $Tool = 'apache' }
-            '3'      { $Tool = 'caddy' }
-            'caddy'  { $Tool = 'caddy' }
-            '4'      { $Tool = 'nginx' }
-            'nginx'  { $Tool = 'nginx' }
+            '1'                  { $Tool = 'php' }
+            'php'                { $Tool = 'php' }
+            '2'                  { $Tool = 'apache' }
+            'apache'             { $Tool = 'apache' }
+            '3'                  { $Tool = 'caddy' }
+            'caddy'              { $Tool = 'caddy' }
+            '4'                  { $Tool = 'nginx' }
+            'nginx'              { $Tool = 'nginx' }
+            '5'                  { $Tool = 'frankenphp' }
+            'frankenphp'         { $Tool = 'frankenphp' }
+            '6'                  { $Tool = 'frankenphp-worker' }
+            'frankenphp-worker'  { $Tool = 'frankenphp-worker' }
             default  { Write-ErrMsg "Invalid choice: '$choice'"; exit 1 }
         }
     }
@@ -308,7 +317,7 @@ try {
 
     if ($Auto) {
         Write-Info "Auto mode: building all tools, all versions, pushing."
-        foreach ($t in @('php', 'apache', 'caddy', 'nginx')) {
+        foreach ($t in @('php', 'apache', 'caddy', 'nginx', 'frankenphp', 'frankenphp-worker')) {
             $allResults += Invoke-ToolBuild -ToolName $t -InteractiveSelection:$false -DoPush:$doPush
         }
     } else {
