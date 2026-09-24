@@ -114,6 +114,45 @@ function Get-ToolFolders {
         Sort-Object SortKey
 }
 
+function Get-SoftwareVersion {
+    param(
+        [string]$ToolName,
+        [string]$LocalTag
+    )
+
+    $null = docker image inspect $LocalTag 2>&1
+    if ($LASTEXITCODE -ne 0) { return $null }
+
+    try {
+        if ($ToolName -in @('php', 'frankenphp', 'frankenphp-worker')) {
+            $raw = docker run --rm --entrypoint php $LocalTag -r 'echo PHP_VERSION;' 2>&1
+            if ($LASTEXITCODE -ne 0) { return $null }
+            return ($raw -join '').Trim()
+        }
+        elseif ($ToolName -eq 'apache') {
+            $raw = docker run --rm --entrypoint httpd $LocalTag -v 2>&1
+            if ($LASTEXITCODE -ne 0) { return $null }
+            $text = ($raw -join ' ')
+            if ($text -match 'Apache/(\S+)') { return $Matches[1] }
+        }
+        elseif ($ToolName -eq 'caddy') {
+            $raw = docker run --rm --entrypoint caddy $LocalTag version 2>&1
+            if ($LASTEXITCODE -ne 0) { return $null }
+            $text = ($raw -join ' ').Trim()
+            if ($text -match 'v?(\d+\.\d+\.\d+)') { return $Matches[1] }
+        }
+        elseif ($ToolName -eq 'nginx') {
+            $raw = docker run --rm --entrypoint nginx $LocalTag -v 2>&1
+            if ($LASTEXITCODE -ne 0) { return $null }
+            $text = ($raw -join ' ')
+            if ($text -match 'nginx/(\S+)') { return $Matches[1] }
+        }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
 function Invoke-ToolBuild {
     <#
     Build+push all (or selected) versions of one tool.
@@ -184,6 +223,8 @@ function Invoke-ToolBuild {
         $remote   = "jurriaanr/${ToolName}:$tagBase"
         $isLatest = ($f.Name -eq $latestFolder.Name)
 
+        $versionBefore = Get-SoftwareVersion -ToolName $ToolName -LocalTag $tagBase
+
         Write-Host ""
         Write-Info "Building $($f.Name) → $remote"
 
@@ -214,12 +255,13 @@ function Invoke-ToolBuild {
                 }
             }
 
+            $versionAfter = Get-SoftwareVersion -ToolName $ToolName -LocalTag $tagBase
             Write-Ok "$($f.Name) done"
-            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'ok'; Error = $null }
+            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'ok'; Error = $null; VersionBefore = $versionBefore; VersionAfter = $versionAfter }
         }
         catch {
             Write-ErrMsg "$($f.Name) FAILED: $_"
-            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'failed'; Error = "$_" }
+            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'failed'; Error = "$_"; VersionBefore = $versionBefore; VersionAfter = $null }
             if ((Get-Location).Path -eq $f.Path) { Pop-Location }
             Write-Host ""
             Write-ErrMsg "Aborting remaining $ToolName builds."
@@ -336,6 +378,27 @@ try {
                 'ok'      { Write-Ok $label }
                 'skipped' { Write-WarnMsg "$label — $($r.Error)" }
                 default   { Write-ErrMsg "$label — $($r.Error)" }
+            }
+        }
+    }
+
+    # --- version report ---
+    $versionResults = @($allResults | Where-Object { $_.Status -eq 'ok' })
+    if ($versionResults.Count -gt 0) {
+        Write-Host ""
+        Write-Info "Version Report"
+        foreach ($r in $versionResults) {
+            $label = "$($r.Tool)/$($r.Name)"
+            if (-not $r.VersionBefore -and $r.VersionAfter) {
+                Write-Host ("  {0,-35} (new) → {1}" -f $label, $r.VersionAfter) -ForegroundColor Cyan
+            } elseif ($r.VersionBefore -and -not $r.VersionAfter) {
+                Write-Host ("  {0,-35} {1} → (unknown)" -f $label, $r.VersionBefore) -ForegroundColor Yellow
+            } elseif (-not $r.VersionBefore -and -not $r.VersionAfter) {
+                Write-Host ("  {0,-35} (version unavailable)" -f $label) -ForegroundColor DarkGray
+            } elseif ($r.VersionBefore -eq $r.VersionAfter) {
+                Write-Host ("  {0,-35} {1} (no change)" -f $label, $r.VersionAfter) -ForegroundColor DarkGray
+            } else {
+                Write-Host ("  {0,-35} {1} → {2}" -f $label, $r.VersionBefore, $r.VersionAfter) -ForegroundColor Green
             }
         }
     }
