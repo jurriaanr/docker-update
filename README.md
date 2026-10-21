@@ -14,7 +14,7 @@ Each tool has its own parent directory containing one subfolder per version:
 
 ```
 ~/sites/docker-php/
-├── php81/
+├── archived/      (retired versions, not built)
 ├── php82/
 ├── php83/
 ├── php84/
