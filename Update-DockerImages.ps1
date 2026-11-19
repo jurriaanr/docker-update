@@ -114,6 +114,45 @@ function Get-ToolFolders {
         Sort-Object SortKey
 }
 
+$StaleBaseDays = 90
+
+function Get-StaleBaseImages {
+    <#
+    Reads every FROM line in a Dockerfile and asks Docker Hub when that tag was
+    last updated. Returns a warning string for each tag older than $StaleBaseDays
+    (usually a pinned upstream branch that went end-of-life and stopped receiving
+    security fixes). Lookup failures are reported, never fatal.
+    #>
+    param([string]$DockerfilePath)
+
+    $warnings = @()
+    $stages   = @()
+    foreach ($line in Get-Content $DockerfilePath) {
+        if ($line -notmatch '^\s*FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?') { continue }
+        $image = $Matches[1]
+        if ($Matches[2]) { $stages += $Matches[2].ToLower() }
+        if ($image -eq 'scratch' -or $stages -contains $image.ToLower() -or $image -match '\$') { continue }
+
+        $name = $image -replace '@.*$', ''
+        $tag  = 'latest'
+        if ($name -match '^(.+):([^/:]+)$') { $name = $Matches[1]; $tag = $Matches[2] }
+        if ($name -match '^[^/]+\.[^/]+/') { continue }   # not Docker Hub (ghcr.io, etc.)
+        if ($name -notmatch '/') { $name = "library/$name" }
+
+        try {
+            $info = Invoke-RestMethod -TimeoutSec 15 -Uri "https://hub.docker.com/v2/repositories/$name/tags/$tag"
+            $updated = [datetime]$info.last_updated
+            $age = [int]((Get-Date) - $updated).TotalDays
+            if ($age -gt $StaleBaseDays) {
+                $warnings += "base image ${image} not updated upstream for $age days (since $($updated.ToString('yyyy-MM-dd'))) — tag likely end-of-life, bump it"
+            }
+        } catch {
+            $warnings += "could not check freshness of base image ${image}: $($_.Exception.Message)"
+        }
+    }
+    return $warnings
+}
+
 function Get-SoftwareVersion {
     param(
         [string]$ToolName,
@@ -228,11 +267,14 @@ function Invoke-ToolBuild {
         Write-Host ""
         Write-Info "Building $($f.Name) → $remote"
 
+        $baseWarnings = @(Get-StaleBaseImages -DockerfilePath (Join-Path $f.Path 'Dockerfile'))
+        foreach ($w in $baseWarnings) { Write-WarnMsg $w }
+
         try {
             Push-Location $f.Path
 
-            Invoke-Step "docker image build --network=host -t $tagBase ." {
-                docker image build --network=host -t $tagBase .
+            Invoke-Step "docker image build --pull --network=host -t $tagBase ." {
+                docker image build --pull --network=host -t $tagBase .
             }
             Invoke-Step "docker image tag $tagBase $remote" {
                 docker image tag $tagBase $remote
@@ -257,11 +299,11 @@ function Invoke-ToolBuild {
 
             $versionAfter = Get-SoftwareVersion -ToolName $ToolName -LocalTag $tagBase
             Write-Ok "$($f.Name) done"
-            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'ok'; Error = $null; VersionBefore = $versionBefore; VersionAfter = $versionAfter }
+            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'ok'; Error = $null; VersionBefore = $versionBefore; VersionAfter = $versionAfter; BaseWarnings = $baseWarnings }
         }
         catch {
             Write-ErrMsg "$($f.Name) FAILED: $_"
-            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'failed'; Error = "$_"; VersionBefore = $versionBefore; VersionAfter = $null }
+            $results += [pscustomobject]@{ Tool = $ToolName; Name = $f.Name; Status = 'failed'; Error = "$_"; VersionBefore = $versionBefore; VersionAfter = $null; BaseWarnings = $baseWarnings }
             if ((Get-Location).Path -eq $f.Path) { Pop-Location }
             Write-Host ""
             Write-ErrMsg "Aborting remaining $ToolName builds."
@@ -400,6 +442,16 @@ try {
             } else {
                 Write-Host ("  {0,-35} {1} → {2}" -f $label, $r.VersionBefore, $r.VersionAfter) -ForegroundColor Green
             }
+        }
+    }
+
+    # --- stale base images ---
+    $staleResults = @($allResults | Where-Object { $_.BaseWarnings })
+    if ($staleResults.Count -gt 0) {
+        Write-Host ""
+        Write-Info "Stale base images"
+        foreach ($r in $staleResults) {
+            foreach ($w in $r.BaseWarnings) { Write-WarnMsg "$($r.Tool)/$($r.Name): $w" }
         }
     }
 
