@@ -27,7 +27,7 @@ Each tool has its own parent directory containing one subfolder per version:
 └── caddy2/
 
 ~/sites/docker-nginx/
-└── nginx127/
+└── nginx1/
 
 ~/sites/docker-frankenphp/
 └── frankenphp85/
@@ -36,7 +36,7 @@ Each tool has its own parent directory containing one subfolder per version:
 └── frankenphp-worker85/
 ```
 
-Folder naming: `<tool><digits>`. The digits are split into a dotted version (first digit + `.` + rest), so `php85` → `8.5`, `nginx127` → `1.27`, `caddy2` → `2`. Each folder must contain a `Dockerfile` at its root.
+Folder naming: `<tool><digits>`. The digits are split into a dotted version (first digit + `.` + rest), so `php85` → `8.5`, `nginx1` → `1`, `caddy2` → `2`. Each folder must contain a `Dockerfile` at its root.
 
 ## Tag scheme
 
@@ -45,7 +45,7 @@ Folder naming: `<tool><digits>`. The digits are split into a dotted version (fir
 | `php` | `php85` | `jurriaanr/php:8.5-fpm` |
 | `apache` | `apache24` | `jurriaanr/apache:2.4-fpm` |
 | `caddy` | `caddy2` | `jurriaanr/caddy:2` |
-| `nginx` | `nginx127` | `jurriaanr/nginx:1.27` |
+| `nginx` | `nginx1` | `jurriaanr/nginx:1` |
 | `frankenphp` | `frankenphp85` | `jurriaanr/frankenphp:8.5` |
 | `frankenphp-worker` | `frankenphp-worker85` | `jurriaanr/frankenphp-worker:8.5` |
 
